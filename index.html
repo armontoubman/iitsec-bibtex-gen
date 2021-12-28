@@ -1,0 +1,168 @@
+<!DOCTYPE HTML>
+<html lang="en">
+  <head>
+    <meta charset=utf-8>
+    <link rel="stylesheet" href="https://unpkg.com/awsm.css/dist/awsm.min.css">
+    <title>I/ITSEC BibTex entry generator</title>
+    <script>
+      function tryExample()
+      {
+        document.getElementById('url').value = 
+          "https://www.xcdsystem.com/iitsec/proceedings/index.cfm?Year=2021&CID=862&AbID=96958";
+      }
+
+      async function cite()
+      {
+        setOutput('Working...');
+        showOutput();
+        fetch("https://api.codetabs.com/v1/proxy/?quest="+document.getElementById('url').value)
+          .then(response => {
+            if(response.ok)
+            {
+              return response.text();
+            }
+            else
+            {
+              throw new Error('Network response was not OK');
+            }
+          })
+          .then(html => {
+            let paper = parsePaper(html);
+            let bibtex = makeBibtex(paper);
+            setOutput(bibtex);
+            showOutput();
+          })
+          .catch(error => {
+            setOutput("Something went wrong fetching this page: " + error);
+            showOutput();
+          });
+      }
+
+      function setOutput(output)
+      {
+        document.getElementById('output').innerHTML = `
+          <pre><code id="code">${output}</code></pre>
+          <button id="copy-button" onclick="copyResult(); return false;">Copy to clipboard</button>`;
+      }
+
+      function showOutput() {
+        document.getElementById('output').style.display = 'block';
+        document.getElementById('reset').disabled = false;
+      }
+      
+      function hideOutput() {
+        document.getElementById('output').style.display = 'none';
+        document.getElementById('reset').disabled = true;
+      }
+
+      function parsePaper(page)
+      {
+        let parser = new DOMParser();
+        let doc = parser.parseFromString(page, 'text/html');
+
+        let metas = doc.getElementsByTagName('meta');
+
+        let result = {
+          key: "",
+          authors: [],
+          title: "",
+          date: "",
+          conf: "",
+          url: ""
+        }
+
+        for(let i=0; i<metas.length; i++)
+        {
+          let meta = metas[i];
+          let name = meta.name;
+          let content = meta.content;
+
+          switch(name) {
+            case "citation_author":
+              result.authors.push(content);
+              break;
+            case "citation_title":
+              result.title = content;
+              break;
+            case "citation_pdf_url":
+              result.url = content;
+              break;
+            case "citation_publication_date":
+              result.date = content;
+              break;
+            case "citation_conference_title":
+              result.conf = content;
+              break;
+            default:
+              break;
+          }
+        }
+
+        result.authors = result.authors.join(" and ");
+        result.date = result.date.replaceAll("/", "-");
+        if(result.url.match(/https/g).length > 1)
+        {
+          result.url = "https://" + result.url.split("https://")[2]
+        }
+        result.key = result.authors.match(/[A-Z]\w+/)[0] 
+          + result.title.match(/[A-Z]\w+/)[0] 
+          + result.date.substring(0, 4);
+
+        return result;
+      }
+
+      function makeBibtex(obj)
+      {
+        const template = `@inproceedings{${obj.key},
+  author    = {${obj.authors}},
+  title     = {${obj.title}},
+  booktitle = {Proceedings of the Interservice/Industry Training, Simulation and Education Conference (${obj.conf})},
+  date      = {${obj.date}},
+  publisher = {National Training & Simulation Association},
+  address   = {Orlando, Florida, USA},
+  url       = {${obj.url}}
+}`
+        return template;
+      }
+
+      function copyResult()
+      {
+        let text = document.getElementById('code').innerHTML;
+        navigator.clipboard.writeText(text);
+        document.getElementById('copy-button').innerText = "Copied!";
+      }
+    </script>
+  </head>
+  <body>
+    <header>
+      <h1>I/ITSEC BibTex entry generator</h1>
+    </header>
+    <main>
+      <article>
+        <section>
+
+        <p>This is a BibTex entry generator for the I/ITSEC proceedings found at 
+          <a href="https://www.xcdsystem.com/iitsec/proceedings/">https://www.xcdsystem.com/iitsec/proceedings/</a>.</p>
+        </section>
+        <section>
+          <form id="the-form" onsubmit="cite(); return false;" onreset="hideOutput()">
+            <fieldset>
+              <legend>I/ITSEC BibTex entry generator</legend>
+              <label for="url">URL</label>
+              <input id="url" type="text" value="">
+              <input type="submit" value="Submit">
+              <button id="reset" type="reset">Reset</button>
+              <a href="#" onclick="tryExample(); cite(); return false;">(try example)</a>
+            </fieldset>
+          </form>
+        </section>
+        <section>
+          <output for="the-form" id="output" style="display: none;"></output>
+        </section>
+      </article>
+    </main>
+    <footer>
+      <p><a href="https://www.armontoubman.com/">Armon Toubman</p>
+    </footer>
+  </body>
+</html>
